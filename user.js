@@ -386,13 +386,13 @@ function StartListner(){
                         }
                         if(event.target.outerHTML.indexOf('导出')!=-1)
                         {
-                            let outtext=NULL
+                            let outtext=''
                             document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
                                 if(item.checkbox==true){
                                     outtext=outtext+item.name+'\n'+item.date+'\n'
                                 }
                             })
-                            if(outtext==NULL)
+                            if(outtext=='')
                             {
                               return;
                             }
