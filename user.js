@@ -285,7 +285,7 @@ function CreateShareClip(tempobj){
     ShowFileObj.content_type=tempobj.content_type;
     ShowFileObj.file_id=tempobj.file_id;
     let ret=confirm('文件名:'+ShowFileObj.name+'\n校验值:'+ShowFileObj.content_hash+'\n文件大小:'+ShowFileObj.size+'\n'+
-                    '点击确定自动添加分享码到剪辑版\n来自油猴中文网bbs.tampermonkey.net.cn\n公众号:叛逆青年旅舍');
+                    '点击确定自动添加分享码到剪辑版');
     if(ret==true)
     {
         try
@@ -615,7 +615,7 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
                         CreateListner=true
                     }
                     RefreshToken()
-                    ShowToast('已获取文件列表 数量为'+filenum+'(数字如不准请联系作者) By:天才少年李恒道')
+                    ShowToast('已获取文件列表 数量为'+filenum+'(数字如不准请联系作者)')
 
                 }
             }
