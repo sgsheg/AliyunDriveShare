@@ -311,7 +311,7 @@ function StartListner(){
             let header=document.querySelector('[class|=header]')
             if(header!==null&&header.childElementCount===2&&document.querySelector('[class|=header]').children[1].innerText.indexOf('提取分享码')===-1){
                 let GenerateShareBtn=document.createElement('div')
-                GenerateShareBtn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px; margin-right: 5px; height: 30px;">提取分享码</div>'
+                GenerateShareBtn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 10px; margin-right: 5px; height: 30px;">提取分享码</div>'
                 GenerateShareBtn.onclick=function(){
                     var text=prompt("请输入分享码","");
                     if(text==null)
