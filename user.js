@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         【bbs.tampermonkey.net.cn】阿里云盘脚本V3.3
+// @name         阿里云盘分享脚本V3.3
 // @namespace    http://bbs.tampermonkey.net.cn/
 // @version      55.5
-// @description  【bbs.tampermonkey.net.cn】李恒道
+// @description  阿里云盘分享脚本
 // @author       【bbs.tampermonkey.net.cn】李恒道
 // @match        https://passport.aliyundrive.com/*
 // @match        https://www.aliyundrive.com/drive/*
@@ -285,14 +285,14 @@ function CreateShareClip(tempobj){
     ShowFileObj.content_type=tempobj.content_type;
     ShowFileObj.file_id=tempobj.file_id;
     let ret=confirm('文件名:'+ShowFileObj.name+'\n校验值:'+ShowFileObj.content_hash+'\n文件大小:'+ShowFileObj.size+'\n'+
-                    '点击确定自动添加分享码到剪辑版');
+                    '点击确定自动添加分享码到剪贴版');
     if(ret==true)
     {
         try
         {
 
             GM_setClipboard(GetFileSha1Encr(tempobj))
-            alert('文件已设置到剪辑版！')
+            alert('文件分享码已添加到剪贴板！')
         }
         catch(err)
         {
@@ -362,7 +362,7 @@ function StartListner(){
                     }
                     GenerateShow=true
                     let OutDialogShow=document.createElement('div')
-                    OutDialogShow.innerHTML=`<div class="ant-modal-content" style=" width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导出</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="    cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="    flex-direction: column;    height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导出</div><div>油猴中文网<span style="    color: red;" data-spm-anchor-id="0.0.0.i7.54a06c75eRjwhJ">bbs.tampermonkey.net.cn</span><span style="    color: blue;"><!--        span--></span></div><div></div></div><div style="background: var(--background_secondary_blur);display: flex;align-items: center;padding: 0px 50px;justify-content: space-evenly;padding-bottom: 10px;"><div>搜索文件</div><input type="text" name="SearchMulFile" data-spm-anchor-id="0.0.0.i1.35676c753HbmyV" value=""><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">搜索</div>                                                                                                                                                   </div><div class="FileListOutShow            " style="    height: calc(100% - 150px);    overflow-y: scroll;    padding: 5px 20px;    max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E">    </div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导出</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">全部选择</div>                                                                                                                                                   <div class="SelectNumShow">当前共:<span>330</span>项</div></div>                                                                                                                                                   </div></div></div>`
+                    OutDialogShow.innerHTML=`<div class="ant-modal-content" style=" width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导出</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="    cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="    flex-direction: column;    height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导出</div><div>油猴中文网<span style="    color: red;" data-spm-anchor-id="0.0.0.i7.54a06c75eRjwhJ">bbs.tampermonkey.net.cn</span><span style="    color: blue;"><!--        span--></span></div><div></div></div><div style="background: var(--background_secondary_blur);display: flex;align-items: center;padding: 0px 50px;justify-content: space-evenly;padding-bottom: 10px;"><div>搜索文件</div><input type="text" name="SearchMulFile" data-spm-anchor-id="0.0.0.i1.35676c753HbmyV" value=""><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">搜索</div>                                                                                                                                                   </div><div class="FileListOutShow            " style="    height: calc(100% - 150px);    overflow-y: scroll;    padding: 5px 20px;    max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E">    </div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导出为文件</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导出到剪贴板</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">全部选择</div>                                                                                                                                                   <div class="SelectNumShow">当前共:<span>330</span>项</div></div>                                                                                                                                                   </div></div></div>`
                     OutDialogShow.onclick=function(event){
                         //多选关闭删除
                         if(event.target.outerHTML.indexOf('#PDSClose')!=-1)
@@ -384,7 +384,7 @@ function StartListner(){
                             SearchFileMulInsert(document.querySelector('[name="SearchMulFile"]').value);
                             return;
                         }
-                        if(event.target.outerHTML.indexOf('导出')!=-1)
+                        if(event.target.outerHTML.indexOf('导出为文件')!=-1)
                         {
                             let outtext=''
                             document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
@@ -394,9 +394,28 @@ function StartListner(){
                             })
                             if(outtext=='')
                             {
-                              return;
+                             	return;
                             }
                             download('阿里云盘分享文件信息.txt',outtext)
+                            return;
+                        }
+						if(event.target.outerHTML.indexOf('导出到剪贴板')!=-1)
+                        {
+                            let outtext=''
+                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
+                                if(item.checkbox==true){
+                                    outtext=outtext+item.name+'\n'+item.date+'\n'
+                                }
+                            })
+                            if(outtext=='')
+                            {
+                            	return;
+                            }
+							else
+							{
+								GM_setClipboard(outtext)
+								alert('文件分享码已导出到剪辑版！')
+							}
                             return;
                         }
 
