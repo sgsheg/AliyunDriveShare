@@ -499,7 +499,7 @@ function StartListner(){
                     if(form.innerHTML.indexOf('生成分享')==-1)
                     {
                         let GenerateFileDate=document.createElement('div')
-                        GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6" style="margin-left: 5px;margin-right: 5px;height: 30px;margin-top: 10px;position: fixed;" data-type="primary">生成分享</div>'
+                        GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6" style="margin-left: 5px;margin-right: 5px;height: 30px;margin-top: 15px;" data-type="primary">生成分享</div>'
                         GenerateFileDate.onclick=function(){
                             let name=document.querySelector('[class|=title-wrapper]').innerText
                             for(let index=0;index<FileList.length;index++){
