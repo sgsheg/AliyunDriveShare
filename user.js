@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         阿里云盘分享脚本V3.3
+// @name         阿里云盘分享脚本V3.4
 // @namespace    http://bbs.tampermonkey.net.cn/
-// @version      55.5
+// @version      55.7
 // @description  阿里云盘分享脚本
 // @author       【bbs.tampermonkey.net.cn】李恒道
 // @match        https://passport.aliyundrive.com/*
@@ -98,7 +98,6 @@ async function StartAllFile(){
     alert('上传完毕,成功了:'+Success+'个文件,失败了:'+Faile+'文件')
     unsafeWindow.location.reload();
 
-
 }
 function AddText(text){
     let list=text.split('\n')
@@ -131,8 +130,6 @@ function AddText(text){
     {
         alert('找不到分享码！')
     }
-
-
 
 }
 function ReadFileList(evt){
@@ -228,10 +225,8 @@ function SearchFileMulInsert(text){
                         if(event.target.outerHTML.indexOf('checkbox')!==-1||event.target.outerHTML.indexOf('M12.6247 5.29974L7.26637')!==-1)
                         {
                             SetSelectItem(FileItem,!FileItem.checkbox)
-
                         }
                     }
-
                     document.querySelector('.FileListOutShow').append(FileItem)
                 }
 
@@ -297,14 +292,12 @@ function CreateShareClip(tempobj){
         catch(err)
         {
 
-            alert('文件名字可能存在特殊关键字，请改名重试')
+            alert('文件名可能存在特殊关键字，请改名重试')
         }
 
     }
 }
 function StartListner(){
-
-
     setInterval(function(event) {
         if(CreateSaveBtn===false)
         {
@@ -316,14 +309,25 @@ function StartListner(){
                     var text=prompt("请输入分享码","");
                     if(text==null)
                     {
-                        return;}
-                    text=decodeURIComponent(escape(window.atob(text)))
-                    text=JSON.parse(text)
+                        return;
+		    }
+		    try{
+                        text=decodeURIComponent(escape(window.atob(text)))
+                        text=JSON.parse(text)
+		    }catch(err){
+                        alert('解析提取码失败！')
+                        return;
+                    }
                     if(text.content_hash==undefined)
                     {
                         alert('提取码不正确！')
                     }
                     else{
+			if(accesstoken=='')
+                        {
+                            alert('访问Token异常！')
+                            return;
+                        }
                         let useruid=JSON.parse(localStorage.getItem('token')).default_drive_id
                         let uploadtext='{"drive_id":"'+useruid+'","part_info_list":[{"part_number":1}],"parent_file_id":"'+parent_file_id+'","name":"'+text.name+'","type":"file","check_name_mode":"auto_rename","size":'+text.size+',"content_hash":"'+text.content_hash+'","content_hash_name":"sha1"}'
 
@@ -392,14 +396,13 @@ function StartListner(){
                                     outtext=outtext+item.name+'\n'+item.date+'\n'
                                 }
                             })
-                            if(outtext=='')
+                            if(outtext!='')
                             {
-                             	return;
+                             	download('阿里云盘分享文件信息.txt',outtext)
                             }
-                            download('阿里云盘分享文件信息.txt',outtext)
                             return;
                         }
-						if(event.target.outerHTML.indexOf('导出到剪贴板')!=-1)
+			if(event.target.outerHTML.indexOf('导出到剪贴板')!=-1)
                         {
                             let outtext=''
                             document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
@@ -407,15 +410,11 @@ function StartListner(){
                                     outtext=outtext+item.name+'\n'+item.date+'\n'
                                 }
                             })
-                            if(outtext=='')
+                            if(outtext!='')
                             {
-                            	return;
+                            	GM_setClipboard(outtext)
+				alert('文件分享码已导出到剪辑版！')
                             }
-							else
-							{
-								GM_setClipboard(outtext)
-								alert('文件分享码已导出到剪辑版！')
-							}
                             return;
                         }
 
@@ -527,11 +526,7 @@ function StartListner(){
 
                     }
 
-
-
-
                 }
-
 
             }
 
@@ -556,7 +551,7 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
                 console.log(this)
                 if(arguments[0].indexOf!=undefined)
                 {
-                                    if(arguments[0].indexOf('marker')==-1)
+                    if(arguments[0].indexOf('marker')==-1)
                 {
                     this.CreatFirstList=true
                 }else if(FileList.length!=0&&arguments[0].indexOf(FileList[FileList.length-1].name)!==-1){
@@ -579,8 +574,11 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
         //CreateBanList
         xhr.addEventListener("load", function(){
             if ( xhr.readyState == 4 && xhr.status == 200 ) {
+		console.log('输出数据',xhr)
+                if(xhr.responseURL==="https://websv.aliyundrive.com/token/refresh"){
+                    accesstoken=JSON.parse(xhr.response).access_token
 
-
+                }
                 if(xhr.responseURL==="https://api.aliyundrive.com/v2/file/list")
                 {
                     let quit=false;
