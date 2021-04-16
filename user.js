@@ -1,25 +1,23 @@
 // ==UserScript==
-// @name         阿里云盘分享脚本V3.4
+// @name         阿里云盘分享脚本V4.9
 // @namespace    http://bbs.tampermonkey.net.cn/
-// @version      55.7
+// @version      66.75
 // @description  阿里云盘分享脚本
 // @author       【bbs.tampermonkey.net.cn】李恒道
 // @match        https://passport.aliyundrive.com/*
 // @match        https://www.aliyundrive.com/drive/*
 // @match        https://www.aliyundrive.com/drive
-// @match        https://aliyundrive.com/drive/*
-// @match        https://aliyundrive.com/drive
 // @match        http://passport.aliyundrive.com/*
 // @match        http://www.aliyundrive.com/drive/*
 // @match        http://www.aliyundrive.com/drive
-// @match        http://aliyundrive.com/drive/*
-// @match        http://aliyundrive.com/drive
 // @icon         https://www.google.com/s2/favicons?domain=aliyundrive.com
 // @require      https://cdn.bootcdn.net/ajax/libs/lodash.js/4.17.21/lodash.js
+// @require      https://cdn.bootcdn.net/ajax/libs/js-sha1/0.6.0/sha1.js
 // @grant        unsafeWindow
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
 // @connect      aliyundrive.com
+// @connect      alicloudccp.com
 // @run-at       document-start
 // @supportURL   https://bbs.tampermonkey.net.cn/forum.php?mod=viewthread&tid=427
 // @homepage     https://bbs.tampermonkey.net.cn/forum.php?mod=viewthread&tid=427
@@ -28,7 +26,8 @@
 let username=''
 let password=''
 //自动登陆配置项
-
+let NewLink=true;
+//使用新版链接
 let FileList=[]
 let Searchlist=[]
 let CreateListner=false;
@@ -41,7 +40,7 @@ let Sublistnum=0;
 var ShowFileObj={
     name:'文件获取失败',
     content_hash:'hash获取失败',
-    size:'0',
+    size:'NULL',
     content_type:'NULL',
     file_id:'NULL',
     content_type:'NULL'
@@ -53,10 +52,333 @@ let totalnum=0;
 let Uploadlist=[]
 let Success=0;
 let Faile=0;
+let GenerateDialogShow;//对话框1
+let GenerateFileinDialogShow;//对话框2
+let GenerateShow=false
+let uploadsize=1000000
+//他妈看不懂了，写的是啥
+function GetFileSha1Encr(tempobj){
+    if(NewLink==true)
+    {
+        let name=tempobj.name.replace('|','=')
+        if(name==='')
+        {
+            name='nameisnull'
+        }
+        return 'aliyunpan://'+name+'|'+tempobj.content_hash.replace('|','=')+'|'+tempobj.size+'|'+tempobj.content_type.replace('|','=')
+    }
+    return window.btoa(unescape(encodeURIComponent(JSON.stringify({
+        name:tempobj.name,
+        content_hash:tempobj.content_hash,
+        size:tempobj.size,
+        content_type:tempobj.content_type,
+    }))))
+}
+function CurrentText() {
+    var d = new Date(),
+        str = '';
+    str += d.getFullYear() + '年';
+    str += d.getMonth() + 1 + '月';
+    str += d.getDate() + '日';
+    str += d.getHours() + '时';
+    str += d.getMinutes() + '分';
+    str += d.getSeconds() + '秒';
+    return str+'序列文件.txt';
+}
+async function CreateTextUpload(name,size,hash){
+    return new Promise((resolve, reject) => {
+        let useruid=JSON.parse(localStorage.getItem('token')).default_drive_id
+        let uploadtext='{"drive_id":"'+useruid+'","part_info_list":[{"part_number":1}],"parent_file_id":"'+parent_file_id+'","name":"'+name+
+            '","type":"file","check_name_mode":"auto_rename","size":'+size+',"content_hash":"'+hash+'","content_hash_name":"sha1"}'
+        GM_xmlhttpRequest({
+            url:"https://api.aliyundrive.com/v2/file/create",
+            method :"POST",
+            data:uploadtext,
+            headers: {
+                "Content-type": "application/json;charset=utf-8",
+                "Authorization": accesstoken
+            },
+            onload:function(xhr){
+                resolve(xhr.responseText);
+
+            }
+        });
+    });
+}
+
+async function UploadTextBin(tageturl,targetdata){
+    return new Promise((resolve, reject) => {
+
+
+        GM_xmlhttpRequest({
+            url:tageturl,
+            method :"PUT",
+            data:targetdata,
+            headers: {
+                "Content-type": " ",
+                "Referer": "https://www.aliyundrive.com/",
+                // "Authorization": accesstoken
+            },
+            //binary:true,
+            onload:function(xhr){
+                resolve(xhr.responseText);
+
+            }
+        });
+    });
+}
+
+async function Complete(upload_id,file_id){
+    return new Promise((resolve, reject) => {
+        let useruid=JSON.parse(localStorage.getItem('token')).default_drive_id
+        let uploadtext='{"drive_id":"'+useruid+'","upload_id":"'+upload_id+'","file_id":"'+file_id+'"}'
+        GM_xmlhttpRequest({
+            url:'https://api.aliyundrive.com/v2/file/complete',
+            method :"POST",
+            data:uploadtext,
+
+            headers: {
+                "Content-type": "application/json;charset=utf-8",
+                "Authorization": accesstoken
+            },
+            onload:function(xhr){
+                resolve(xhr.responseText);
+
+            }
+        });
+    });
+}
+function GetDecrText(text){
+    if(text.indexOf('115://')!==-1)
+    {
+        let sizelist=text.replace('115://','').split('|')
+        if(sizelist.length<4)
+        {
+            return 'Error'
+        }
+        if(sizelist.length>4)
+        {
+            var n = parseInt(sizelist[1]);
+            if (!isNaN(n))
+            {
+                return {content_hash:sizelist[2],content_type:'null',name:sizelist[0],size:sizelist[1]}
+            }
+            let temp=text
+            let sizelength=text.replace('115://','').split('|').length-4
+            for(let num=0;num<sizelength;num++)
+            {
+                temp=temp.replace('|','=')
+            }
+            sizelist=temp.replace('115://','').split('|')
+        }
+
+
+        return {content_hash:sizelist[2],content_type:'null',name:sizelist[0],size:sizelist[1]}
+    }
+    if(text.indexOf('aliyunpan::')!==-1)
+    {
+        let sizelist=text.replace('aliyunpan::','').split('|')
+        if(sizelist.length!==4)
+        {
+            return 'Error'
+        }
+        return {content_hash:sizelist[1],content_type:sizelist[3],name:sizelist[0],size:sizelist[2]}
+    }
+    if(text.indexOf('aliyunpan://')!==-1)
+    {
+        let sizelist=text.replace('aliyunpan://','').split('|')
+        if(sizelist.length!==4)
+        {
+            return 'Error'
+        }
+        return {content_hash:sizelist[1],content_type:sizelist[3],name:sizelist[0],size:sizelist[2]}
+    }
+    try
+    {
+
+        return JSON.parse(decodeURIComponent(escape(window.atob(text))))
+    }
+    catch(err)
+    {
+
+        return 'Error'
+    }
+
+}
+function MulReadialogCreate(){
+    if(GenerateShow===true)
+    {
+        GenerateShow=false;
+        GenerateDialogShow.remove()
+    }
+    //导入文件
+    if(GenerateFileInShow==true)
+    {
+        return;
+    }
+    GenerateFileInShow=true
+    GenerateFileinDialogShow=document.createElement('div')
+    unsafeWindow.ReadFileList=ReadFileList
+    GenerateFileinDialogShow.innerHTML=`<div class="ant-modal-content" style="width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><input id="uploadfile" onchange="ReadFileList(this)" type="file" style="display: none;"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导入(请勿导入时关闭)</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="flex-direction: column;height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导入</div></div><div class="FileListOutShow" style="height: calc(100% - 150px);overflow-y: scroll;padding: 5px 20px;max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E"></div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 32px;">开始提取</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 32px;">导入文件</div>                                                                                                                                                   <div class="SelectNumShow">当前已选:<span>0</span>项</div></div>                                                                                                                                                   </div></div></div>`
+                    GenerateFileinDialogShow.onclick=function(event){
+                        //多选关闭删除
+                        if(event.target.outerHTML.indexOf('#PDSClose')!=-1)
+                        {
+                            Uploadlist=[]
+                            GenerateFileInShow=false;
+                            GenerateFileinDialogShow.remove()
+
+                            return;
+                        }
+                        if(event.target.outerHTML.indexOf('导入文件')!=-1)
+                        {
+                            document.getElementById("uploadfile").click();
+
+                            return;
+                        }
+                        if(event.target.outerHTML.indexOf('开始提取')!=-1)
+                        {
+                            alert('正在开始上传，请勿重复点击！')
+                            StartAllFile()
+
+                            return;
+                        }
+
+                    }
+    document.querySelector('body').append(GenerateFileinDialogShow)
+}
+function MulFileDialogCreate(){
+    if(GenerateFileInShow==true)
+    {
+        Uploadlist=[]
+        GenerateFileInShow=false;
+        GenerateFileinDialogShow.remove()
+    }
+    if(GenerateShow==true)
+    {
+        return;
+    }
+    GenerateShow=true
+    GenerateDialogShow=document.createElement('div')
+    GenerateDialogShow.innerHTML=`<div class="ant-modal-content" style="width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导出</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="flex-direction: column;height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导出</div></div><div style="background: var(--background_secondary_blur);display: flex;align-items: center;padding: 0px 50px;justify-content: space-evenly;padding-bottom: 10px;"><div>搜索文件</div><input type="text" name="SearchMulFile" data-spm-anchor-id="0.0.0.i1.35676c753HbmyV" value=""><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right:5px;height: 32px;">搜索</div>                                                                                                                                                   </div><div class="FileListOutShow" style="height: calc(100% - 150px);overflow-y: scroll;padding: 5px 20px;max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E">    </div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 32px;">导出至剪贴板</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 32px;">导出</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 32px;">全部选择</div>                                                                                                                                                   <div class="SelectNumShow">当前共:<span>330</span>项</div></div>                                                                                                                                                   </div></div></div>`
+                    GenerateDialogShow.onclick=function(event){
+                        debugger;
+                        console.log('去他妈的导出（修改者注：？？？）',event.target)
+                        //多选关闭删除
+                        if(event.target.outerHTML.indexOf('#PDSClose')!=-1)
+                        {
+                            GenerateShow=false;
+                            GenerateDialogShow.remove()
+
+                            return;
+                        }
+                        if(event.target.innerText=='全部选择')
+                        {
+                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
+                                SetSelectItem(item,true)
+                            })
+                            return;
+                        }
+                        if(event.target.innerText=='搜索')
+                        {
+                            SearchFileMulInsert(document.querySelector('[name="SearchMulFile"]').value);
+                            return;
+                        }
+                        if(event.target.innerText=='导出至剪贴板')
+                        {
+                            let outtext=''
+                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
+                                if(item.checkbox==true){
+                                    outtext=outtext+item.name+'\n'+item.date+'\n'
+                                }
+                            })
+                            if(outtext!='')
+                            {
+                                GM_setClipboard(outtext)
+                                alert('文件分享码已导出至剪贴版！')
+                            }
+                            if(outtext=='')
+                            {
+                                alert('请选择需要分享的文件！')
+                            }
+                            return;
+                        }
+
+                        if(event.target.innerText=='导出')
+                        {
+                            let outtext=''
+                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
+                                if(item.checkbox==true){
+                                    outtext=outtext+item.name+'\n'+item.date+'\n'
+                                }
+                            })
+                            if(outtext!='')
+                            {
+                                download('阿里云盘文件分享.txt',outtext)
+                            }
+                            if(outtext=='')
+                            {
+                                alert('请选择需要分享的文件！')
+                            }
+                            return;
+                        }
+
+                    }
+    document.querySelector('body').append(GenerateDialogShow)
+    SearchFileMulInsert('')
+}
+function LoadDownloadText(url){
+    debugger;
+    GM_xmlhttpRequest({
+        url:url,
+        method :"GET",
+        headers: {
+            //"Content-type": "application/json;charset=utf-8",
+            "Referer": "https://www.aliyundrive.com/",
+            // "Authorization": accesstoken
+        },
+        onload:function(xhr){
+            debugger;
+            MulReadialogCreate()
+            AddText(xhr.responseText)
+            alert('解析完成！')
+            console.log('解析文本内容!',xhr.responseText)
+        }
+    });
+
+}
+function DownloadTextRead(obj){
+    alert('开始读取文件内容，时长根据网速决定，请勿重复点击');
+    console.log('获取远程对象开始',obj)
+    let useruid=JSON.parse(localStorage.getItem('token')).default_drive_id
+    let uploadtext='{"drive_id":"'+useruid+'","file_id":"'+obj.file_id+'"}'
+    GM_xmlhttpRequest({
+        url:"https://api.aliyundrive.com/v2/file/get_download_url",
+        method :"POST",
+        data:uploadtext,
+        headers: {
+            "Content-type": "application/json;charset=utf-8",
+            "Referer": "https://www.aliyundrive.com/",
+            "Authorization": accesstoken
+        },
+        onload:function(xhr){
+            var json = JSON.parse(xhr.responseText);
+            if(json.url===undefined)
+            {
+                alert('获取下载地址失败！')
+                return;
+
+            }
+            LoadDownloadText(json.url)
+        }
+    });
+
+    //MulReadialogCreate()
+}
 async function UploadOne(num){
     return new Promise((resolve, reject) => {
         let obj=Uploadlist[num]
-        let text=JSON.parse(decodeURIComponent(escape(window.atob(obj.date))))
+        let text=GetDecrText(obj.date)
         let useruid=JSON.parse(localStorage.getItem('token')).default_drive_id
         let uploadtext='{"drive_id":"'+useruid+'","part_info_list":[{"part_number":1}],"parent_file_id":"'+parent_file_id+'","name":"'+text.name+'","type":"file","check_name_mode":"auto_rename","size":'+text.size+',"content_hash":"'+text.content_hash+'","content_hash_name":"sha1"}'
         GM_xmlhttpRequest({
@@ -98,19 +420,19 @@ async function StartAllFile(){
     alert('上传完毕,成功了:'+Success+'个文件,失败了:'+Faile+'文件')
     unsafeWindow.location.reload();
 
+
 }
 function AddText(text){
     let list=text.split('\n')
     for(let index=0;index<list.length;index++)
     {
         let rowtext=list[index]
-        if(rowtext.indexOf('eyJu')!=-1)
+        if(rowtext.indexOf('eyJu')!=-1||rowtext.indexOf('aliyunpan://')!=-1||rowtext.indexOf('aliyunpan::')!=-1||rowtext.indexOf('115://')!=-1)
         {
-            let temp=decodeURIComponent(escape(window.atob(rowtext)))
-            temp=JSON.parse(temp)
+            let temp=GetDecrText(rowtext)
             if(temp.content_hash==undefined)
             {
-                alert('提取码不正确！')
+                alert('存在文件不正確！已跳過該文件！')
             }
             else{
                 let FileItem=document.createElement('div')
@@ -130,6 +452,8 @@ function AddText(text){
     {
         alert('找不到分享码！')
     }
+
+
 
 }
 function ReadFileList(evt){
@@ -161,15 +485,6 @@ function download(filename, text) {
     document.body.removeChild(element);
 }
 function uploadadded(event){
-    console.log('uploadadded',event)
-}
-function GetFileSha1Encr(tempobj){
-    return window.btoa(unescape(encodeURIComponent(JSON.stringify({
-        name:tempobj.name,
-        content_hash:tempobj.content_hash,
-        size:tempobj.size,
-        content_type:tempobj.content_type,
-    }))))
 }
 function SetTotalnum(){
     document.querySelector('.SelectNumShow span').innerText=totalnum
@@ -195,8 +510,8 @@ function SetSelectItem(item,check,change=true){
         item.checkbox=false
         if(change==true)
         {
-          totalnum-=1
-         SetTotalnum()
+            totalnum-=1
+            SetTotalnum()
         }
 
         item.children[0].children[2].setAttribute('data-checked','false')
@@ -225,8 +540,10 @@ function SearchFileMulInsert(text){
                         if(event.target.outerHTML.indexOf('checkbox')!==-1||event.target.outerHTML.indexOf('M12.6247 5.29974L7.26637')!==-1)
                         {
                             SetSelectItem(FileItem,!FileItem.checkbox)
+
                         }
                     }
+
                     document.querySelector('.FileListOutShow').append(FileItem)
                 }
 
@@ -287,7 +604,7 @@ function CreateShareClip(tempobj){
         {
 
             GM_setClipboard(GetFileSha1Encr(tempobj))
-            alert('文件分享码已添加到剪贴板！')
+            alert('文件分享码已导出至剪贴版！')
         }
         catch(err)
         {
@@ -298,23 +615,23 @@ function CreateShareClip(tempobj){
     }
 }
 function StartListner(){
+
+
     setInterval(function(event) {
         if(CreateSaveBtn===false)
         {
             let header=document.querySelector('[class|=header]')
             if(header!==null&&header.childElementCount===2&&document.querySelector('[class|=header]').children[1].innerText.indexOf('提取分享码')===-1){
                 let GenerateShareBtn=document.createElement('div')
-                GenerateShareBtn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 10px;margin-right: 5px;height: 30px;">提取分享码</div>'
+                GenerateShareBtn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 10px;margin-right: 5px;height: 32px;">提取分享码</div>'
                 GenerateShareBtn.onclick=function(){
                     var text=prompt("请输入分享码","");
                     if(text==null)
                     {
-                        return;
-		    }
-		    try{
-                        text=decodeURIComponent(escape(window.atob(text)))
-                        text=JSON.parse(text)
-		    }catch(err){
+                        return;}
+                    try{
+                        text=GetDecrText(text)
+                    }catch(err){
                         alert('解析提取码失败！')
                         return;
                     }
@@ -323,7 +640,7 @@ function StartListner(){
                         alert('提取码不正确！')
                     }
                     else{
-			if(accesstoken=='')
+                        if(accesstoken=='')
                         {
                             alert('访问Token异常！')
                             return;
@@ -356,112 +673,18 @@ function StartListner(){
                     }
 
                 }
-                let GenerateShow=false
                 let GenerateFileOut=document.createElement('div')
-                GenerateFileOut.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" style="margin-left: 5px;margin-right: 5px;height: 30px;">多文件分享</div>'
+                GenerateFileOut.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" style="margin-left: 5px;margin-right: 5px;height: 32px;">多文件分享</div>'
                 GenerateFileOut.onclick=function(){
-                    if(GenerateShow==true)
-                    {
-                        return;
-                    }
-                    GenerateShow=true
-                    let OutDialogShow=document.createElement('div')
-                    OutDialogShow.innerHTML=`<div class="ant-modal-content" style=" width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导出</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="    cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="    flex-direction: column;    height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导出</div><div>油猴中文网<span style="    color: red;" data-spm-anchor-id="0.0.0.i7.54a06c75eRjwhJ">bbs.tampermonkey.net.cn</span><span style="    color: blue;"><!--        span--></span></div><div></div></div><div style="background: var(--background_secondary_blur);display: flex;align-items: center;padding: 0px 50px;justify-content: space-evenly;padding-bottom: 10px;"><div>搜索文件</div><input type="text" name="SearchMulFile" data-spm-anchor-id="0.0.0.i1.35676c753HbmyV" value=""><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">搜索</div>                                                                                                                                                   </div><div class="FileListOutShow            " style="    height: calc(100% - 150px);    overflow-y: scroll;    padding: 5px 20px;    max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E">    </div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导出为文件</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导出到剪贴板</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">全部选择</div>                                                                                                                                                   <div class="SelectNumShow">当前共:<span>330</span>项</div></div>                                                                                                                                                   </div></div></div>`
-                    OutDialogShow.onclick=function(event){
-                        //多选关闭删除
-                        if(event.target.outerHTML.indexOf('#PDSClose')!=-1)
-                        {
-                            GenerateShow=false;
-                            OutDialogShow.remove()
+                    MulFileDialogCreate()
 
-                            return;
-                        }
-                        if(event.target.outerHTML.indexOf('全部选择')!=-1)
-                        {
-                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
-                                SetSelectItem(item,true)
-                            })
-                            return;
-                        }
-                        if(event.target.outerHTML.indexOf('搜索')!=-1)
-                        {
-                            SearchFileMulInsert(document.querySelector('[name="SearchMulFile"]').value);
-                            return;
-                        }
-                        if(event.target.outerHTML.indexOf('导出为文件')!=-1)
-                        {
-                            let outtext=''
-                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
-                                if(item.checkbox==true){
-                                    outtext=outtext+item.name+'\n'+item.date+'\n'
-                                }
-                            })
-                            if(outtext!='')
-                            {
-                             	download('阿里云盘分享文件信息.txt',outtext)
-                            }
-                            return;
-                        }
-			if(event.target.outerHTML.indexOf('导出到剪贴板')!=-1)
-                        {
-                            let outtext=''
-                            document.querySelectorAll('.FileListOutShow >div').forEach(item=>{
-                                if(item.checkbox==true){
-                                    outtext=outtext+item.name+'\n'+item.date+'\n'
-                                }
-                            })
-                            if(outtext!='')
-                            {
-                            	GM_setClipboard(outtext)
-				alert('文件分享码已导出到剪辑版！')
-                            }
-                            return;
-                        }
-
-                    }
-                    document.querySelector('body').append(OutDialogShow)
-                    SearchFileMulInsert('')
                 }
                 let GenerateFileIn=document.createElement('div')
 
-                GenerateFileIn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" style="margin-left: 5px;margin-right: 5px;height: 30px;">多文件提取</div>'
+                GenerateFileIn.innerHTML='<div class="button-wrapper--1UkG6" data-type="primary" style="margin-left: 5px;margin-right: 5px;height: 32px;">多文件提取</div>'
                 GenerateFileIn.onclick=function(){
-                    //导入文件
-                    if(GenerateFileInShow==true)
-                    {
-                        return;
-                    }
-                    GenerateFileInShow=true
-                    let OutDialogShow=document.createElement('div')
-                    unsafeWindow.ReadFileList=ReadFileList
-                    OutDialogShow.innerHTML=`<div class="ant-modal-content" style=" width: 500px;z-index: 99;position: absolute;top: 50px;left: calc(50% - 250px);"><div class="ant-modal-header"><input id="uploadfile" onchange="ReadFileList(this)" type="file"  style="display: none;"><div class="ant-modal-title" id="rcDialogTitle0"><div class="icon-wrapper--3dbbo" style="display: flex;align-items: center;justify-content: space-between;"><span>文件批量导入(请勿导入时关闭)</span>    <span data-role="icon" data-render-as="svg" data-icon-type="PDSClose" class="close-icon--33bP0 icon--d-ejA " style="    cursor: pointer;"><svg viewBox="0 0 1024 1024"><use xlink:href="#PDSClose"></use></svg></span></div></div></div><div class="ant-modal-body"><div class=""><div class="cover-wrapper--2UqQb" style="    flex-direction: column;    height: 100px;" data-spm-anchor-id="0.0.0.i6.54a06c75eRjwhJ"><div>多文件批量导出</div><div>油猴中文网<span style="    color: red;" data-spm-anchor-id="0.0.0.i7.54a06c75eRjwhJ">bbs.tampermonkey.net.cn</span><span style="    color: blue;"><!--        span--></span></div><div></div></div><div class="FileListOutShow            " style="    height: calc(100% - 150px);    overflow-y: scroll;    padding: 5px 20px;    max-height: 300px;" data-spm-anchor-id="0.0.0.i7.54a06c75uw7F5E"></div><div style="display: flex;flex-direction: row-reverse;margin-top: 10px;align-items: center;"><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">开始提取</div><div class="button-wrapper--1UkG6" data-type="primary" data-spm-anchor-id="0.0.0.i3.35676c7515rlzj" style="margin-left: 5px;margin-right: 5px;height: 30px;">导入文件</div>                                                                                                                                                   <div class="SelectNumShow">当前已选:<span>0</span>项</div></div>                                                                                                                                                   </div></div></div>`
-                    OutDialogShow.onclick=function(event){
-                        //多选关闭删除
-                        if(event.target.outerHTML.indexOf('#PDSClose')!=-1)
-                        {
-                            Uploadlist=[]
-                            GenerateFileInShow=false;
-                            OutDialogShow.remove()
+                    MulReadialogCreate()
 
-                            return;
-                        }
-                        if(event.target.outerHTML.indexOf('导入文件')!=-1)
-                        {
-                            document.getElementById("uploadfile").click();
-
-
-                            return;
-                        }
-                        if(event.target.outerHTML.indexOf('开始提取')!=-1)
-                        {
-                            alert('正在开始上传，请勿重复点击！')
-                            StartAllFile()
-
-                            return;
-                        }
-
-                    }
-                    document.querySelector('body').append(OutDialogShow)
 
                 }
                 document.querySelector('[class|=header]').children[1].append(GenerateShareBtn)
@@ -476,14 +699,15 @@ function StartListner(){
             let form=formlist[forminedx]
             if(form.offsetWidth==0)
             {
-                return;}
+                continue;
+            }
 
 
             if(form!=null&&form.innerHTML.indexOf('详细信息')!=-1)
             {
                 if(form.innerHTML.indexOf('创建时间')!=-1)
                 {
-                    let img=document.querySelector('.ant-modal-body img')
+                    let img=form.children[0].children[0].children[0].children[0].alt
                     if(img!==null&&img.alt==="folder")
                     {
                         if(document.querySelector('.ant-modal-body').innerText.indexOf('生成分享')!==-1)
@@ -493,32 +717,98 @@ function StartListner(){
                         return;
 
                     }
+                    /*if(img!==null&&img.alt==="text")
+                    {
+                        let innertext=document.querySelector('.ant-modal-body').innerText
+                        if(innertext.indexOf('生成分享')!==-1&&innertext.indexOf('远程提取')===-1)
+                        {
+                            document.querySelector('.dingwei').style.display='flex'
+                            document.querySelector('.dingwei').innerHTML='<div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary">生成分享</div><div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary" style=" margin-left: 5px;">远程提取</div>'
 
+                         return;
+                        }
+
+                    }*/
 
                     if(form.innerHTML.indexOf('生成分享')==-1)
                     {
                         let GenerateFileDate=document.createElement('div')
-                        GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6" style="margin-left: 5px;margin-right: 5px;height: 30px;margin-top: 15px;" data-type="primary">生成分享</div>'
-                        GenerateFileDate.onclick=function(){
-                            let name=document.querySelector('[class|=title-wrapper]').innerText
-                            for(let index=0;index<FileList.length;index++){
-                                let templist=FileList[index]
-                                for(let innerindex=0;innerindex<templist.list.length;innerindex++)
-                                {
-                                    let tempobj=templist.list[innerindex]
+                        GenerateFileDate.style.display='flex'
+                        GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary" style="margin-top: 10px;margin-left: 5px;margin-right: 5px;height: 32px;">生成分享</div><div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary" style="margin-top: 10px;margin-left: 5px;margin-right: 5px;height: 32px;">远程提取</div>'
+                        /*if(img.alt==="text")
+                        {
+                            GenerateFileDate.style.display='flex'
+                            GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary">生成分享</div><div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary" style=" margin-left: 5px;">远程提取</div>'
 
-                                    if(tempobj.type!=='folder')
+                        }else{
+                            GenerateFileDate.innerHTML='<div class="button-wrapper--1UkG6 FuckNetTextChild" data-type="primary">生成分享</div>'
+                        }*/
+                        GenerateFileDate.onclick=function(event){
+                            if(event.target.innerText=='生成分享')
+                            {
+                                let name=document.querySelector('[class|=title-wrapper]').innerText
+                                for(let index=0;index<FileList.length;index++){
+                                    let templist=FileList[index]
+                                    for(let innerindex=0;innerindex<templist.list.length;innerindex++)
                                     {
-                                        if(tempobj.name===name)
+                                        let tempobj=templist.list[innerindex]
+
+                                        if(tempobj.type!=='folder')
                                         {
-                                            CreateShareClip(tempobj)
-                                            return;
+                                            if(tempobj.name===name)
+                                            {
+                                                CreateShareClip(tempobj)
+                                                return;
+                                            }
+
                                         }
 
                                     }
 
                                 }
 
+                                return;
+                            }
+                            if(event.target.innerText=='远程提取')
+                            {
+                                let name=document.querySelector('[class|=title-wrapper]').innerText
+                                for(let index=0;index<FileList.length;index++){
+                                    let templist=FileList[index]
+                                    for(let innerindex=0;innerindex<templist.list.length;innerindex++)
+                                    {
+                                        let tempobj=templist.list[innerindex]
+
+                                        if(tempobj.type!=='folder')
+                                        {
+                                            if(tempobj.name===name)
+                                            {
+                                                if(tempobj.file_extension==="txt")
+                                                {
+                                                    console.log('查看文件',tempobj)
+                                                    if(tempobj.size>uploadsize){
+                                                        alert('该文本文档的大小过大!无法使用该功能')
+                                                    }
+                                                    else{
+                                                        let temlist=document.querySelectorAll('[role="document"] [data-icon-type="PDSClose"]')
+                                                        for(let index=0;index<temlist.length;index++){
+                                                            temlist[index].click()
+                                                        }
+                                                        DownloadTextRead(tempobj)
+                                                    }
+
+                                                }else{
+                                                    alert('该文件不是文本文件！')
+                                                }
+                                                return;
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                return;
                             }
                         }
                         let WrapperList=document.querySelectorAll('[class|=group-wrapper]')
@@ -532,7 +822,6 @@ function StartListner(){
 
         }
     }, 1500);
-
 
 }
 if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
@@ -548,22 +837,19 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
                 for( i = 0; i < XMLHttpRequest.callbacks.length; i++ ) {
                     XMLHttpRequest.callbacks[i]( this );
                 }
-                console.log(this)
                 if(arguments[0].indexOf!=undefined)
                 {
                     if(arguments[0].indexOf('marker')==-1)
-                {
-                    this.CreatFirstList=true
-                }else if(FileList.length!=0&&arguments[0].indexOf(FileList[FileList.length-1].name)!==-1){
-                    this.NextList=true
+                    {
+                        this.CreatFirstList=true
+                    }else if(FileList.length!=0&&arguments[0].indexOf(FileList[FileList.length-1].name)!==-1){
+                        this.NextList=true
 
-                }
-                   console.log('arguments',arguments[0].indexOf,arguments)
-                if(arguments[0].indexOf('parent_file_id')!==-1)
-                {
-                    parent_file_id=JSON.parse(arguments[0]).parent_file_id
-                    console.log('搜索到了参数',parent_file_id)
-                }
+                    }
+                    if(arguments[0].indexOf('parent_file_id')!==-1)
+                    {
+                        parent_file_id=JSON.parse(arguments[0]).parent_file_id
+                    }
                 }
                 //FileList=[{name:item.next_marker,list:item.items}]
                 oldSend.apply(this, arguments);
@@ -574,7 +860,6 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
         //CreateBanList
         xhr.addEventListener("load", function(){
             if ( xhr.readyState == 4 && xhr.status == 200 ) {
-		console.log('输出数据',xhr)
                 if(xhr.responseURL==="https://websv.aliyundrive.com/token/refresh"){
                     accesstoken=JSON.parse(xhr.response).access_token
 
@@ -641,7 +926,6 @@ if(unsafeWindow.location.href.indexOf('aliyundrive.com/drive')!=-1)
     });
 
 }
-
 if(unsafeWindow.location.href.indexOf('passport.aliyundrive.com/mini_login.htm')!=-1)
 {
     let container=document.querySelector('#container');
@@ -665,8 +949,6 @@ if(unsafeWindow.location.href.indexOf('passport.aliyundrive.com/mini_login.htm')
         document.querySelector('.password-login').click()
 
     });
-
-
 
     return;
 }
